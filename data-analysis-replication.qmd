@@ -1,0 +1,175 @@
+---
+title: "data-analysis-replication"
+format: html
+editor: visual
+---
+
+## Data Analysis Replication
+
+### *"Primate brain size is predicted by diet but not sociality" - Alex R. DeCasien, Scott A. Williams, James P. Higham*
+
+#### Abstract
+
+*The social brain hypothesis posits that social complexity is the primary driver of primate cognitive complexity, and that social pressures ultimately led to the evolution of the large human brain. Although this idea has been supported by studies indicating positive relationships between relative brain and/or neocortex size and group size, reported effects of different social and mating systems are highly conflicting. Here, we use a much larger sample of primates, more recent phylogenies, and updated statistical techniques, to show that brain size is predicted by diet, rather than multiple measures of sociality, after controlling for body size and phylogeny. Specifically, frugivores exhibit larger brains than folivores. Our results call into question the current emphasis on social rather than ecological explanations for the evolution of large brains in primates and evoke a range of ecological and developmental hypotheses centered on frugivory, including spatial information storage, extractive foraging and overcoming metabolic constraints*
+
+-   Dietary Influence: After analyzing over 140 primate species and controlling for the body size and evolutionary relationships, the researchers discovered that **frugivores** (fruit-rich diets) tended to have **larger** brain size on average than those primates that were primarily **folivoric** (leaf-consuming) in their diets. This suggest that the cognitive demands of the frugivore diet may drive increases in brain size.
+
+-   Limited Role of Sociality: Contrary to the social brain hypothesis, measures of social complexity -- such as group size, social systems, and mating systems -- did not show any significant correlation with brain size.
+
+The findings imply that the ecological challenges within one's diet and foraging strategies may play a more crucial role in primate brain development than previously thought. The study underscores the importance of considering ecological factors alongside social ones when examining the evolutionary pressures that shape cognitive development in primates.
+
+#### Reproduction of Results
+
+*"For each of the three sociality measures (mean group size, social system, mating system), two sets of models were constructed to incorporate either dietary category or percent frugivory as the diet measure. In each set, three different models were constructed, each of which had brain size as the dependent variable and either body size, body size + diet, or body size + diet + sociality proxy as predictors. All continuous variables except percent frugivory were log-transformed before analyses. Interaction terms were not included for the sake of interpretability and to prevent over-parameterization."*
+
+#### Variables:
+
+-   Dependent Variable: Mean Brain Size
+
+    -   *Mean Brain Size: Boddy, A. M. et al. Comparative analysis of encephalization in mammals reveals relaxed constraints on anthropoid primate and cetacean brain scaling., J. Evol. Biol. 25, 981--994 (2012a). 49. Isler, K. et al. Endocranial volumes of primate species: scaling analyses using a comprehensive and reliable data set. J. Hum. Evol. 55,967--978 (2008).*
+
+-   Independent Variable: Mean Body Weight, Diet Category, Percent Frugivory, Social System, Mating System
+
+    -   *Percent Frugivory: Kaplan, H. S. et al. in Guts and Brains: An Integrative Approach to the Hominin Record (ed. Roebroeks, W.) 47--90 (Leiden Univ. Press, 2007).*
+
+    -   *Mean Body Weight: Received from CRC Handbook of Mammalian Body Masses, AnAge, and PanTHERIA databases*
+
+    -   *Diet Category: Collected from several published literature to classify species into folivore, frugivore/folivore, frugivore and omnivore*
+
+    -   *Social System: Collected from several published literature to classify species into solitary, pair-living, harem polygyny and polygynandry*
+
+    -   *Mating System: Collected from several published literature to classify species into* *spatial polygyny, monogamy, polyandry, harem polygyny and polygynandry*
+
+#### **Significant Analyses:**
+
+-   *Results for diet and group size models (spp. n= 140): brain (log) \~ body (log) + diet + group size (log).*
+
+-   *Results for diet and social system models (spp. n= 142): brain (log) \~ body (log) + diet + social system.*
+
+-   *Results for diet and mating system models (spp. n= 142): brain (log) \~ body (log) + diet + mating system.*
+
+-   *Results for diet models (spp. n= 144): brain (log) \~ body (log) + diet.*
+
+-   *Ancestral reconstructions of primate EQ (left) and mean group size (right).*
+
+#### Methods of Analyses:
+
+-   Phylogenetic Generalized Least Squares (PGLS) Regression
+
+-   Maximum-Likelihood Model Averaging
+
+-   Bayesian Phylogenetic Mixed Model
+
+-   Consensus Tree Analyses
+
+    -   The **10kTrees** Website: Phylogeny of primates, even-toed and odd-toed ungulates, and cetaceans
+
+        -   Performed on *anthropoids* and *catarrhines*
+
+        -   Female-only brain and body size
+
+**Statistical Measures:**
+
+-   Bayesian Information Criterion
+
+-   Maximum-likelihood estimates for branch length transformations
+
+-   Type-I ANOVA Tests for Model Predictors
+
+-   Encephalization Quotient
+
+#### Preliminaries
+
+```{r}
+# General Packages
+library(readxl)
+library(stats)
+library(tidyverse)
+library(ggplot2)
+library(dplyr)
+
+# Specified Packages
+library(phytools)   # Maximum-likelihood ancestral state reconstruction
+library(ape)        # Phylogenetic tree construction using 'multi2di'
+library(AICcmodavg) # Post-hoc analyses
+library(MCMCglmm)   # Bayseian mixed models
+library(MuMIn)      # ....
+```
+
+##### Data Preparation
+
+```{r}
+# Path to the Excel file
+file = "replicate_data.xls"
+
+# Read each relevant sheet and produce a compiled dataset
+brain_data     <- read_excel(file, sheet = 3)  # Brain size data
+body_data      <- read_excel(file, sheet = 4)  # Body size data
+diet_data      <- read_excel(file, sheet = 5)  # Diet data
+system_data    <- read_excel(file, sheet = 6)  # Social & mating system data
+group_size     <- read_excel(file, sheet = 8,  # Group size data
+                             col_names = TRUE, 
+                             skip = 5, 
+                             range = "A6:E146") |>
+  rename(Taxon = `Row Labels`)
+
+primate_data <- brain_data |>
+  left_join(body_data, by = "Taxon") |>
+  left_join(diet_data,  by = "Taxon") |>
+  left_join(system_data,  by = "Taxon") |>
+  left_join(group_size,  by = "Taxon")
+
+# Construct the combined data frame
+primate_data_mod <- primate_data |>
+  select(
+    Taxon,
+    fem_brain_weight     = `Female Brain Weight`,
+    fem_body_weight      = `Female Body Weight`,
+    brain_weight         = `Final Brain Weight (g)`,
+    body_weight          = `Final Body Weight (g)`,
+    dietary_category   = `Diet Category`,
+    percent_frugivory  = `% Fruit`,
+    social_system      = `Social System`,
+    mating_system      = `Mating System`,
+    avg_group_size     = `Average of Group Size`
+  )
+
+# View(primate_data_mod)
+# summary(primate_data_mod)
+
+primate_data_mod$dietary_category <- factor(primate_data_mod$dietary_category)
+primate_data_mod$social_system <- factor(primate_data_mod$social_system)
+primate_data_mod$mating_system <- factor(primate_data_mod$mating_system)
+
+primate_data_mod$log_fem_brain <- log(primate_data_mod$fem_brain_weight)
+primate_data_mod$log_fem_body <- log(primate_data_mod$fem_body_weight)
+primate_data_mod$log_brain <- log(primate_data_mod$brain_weight)
+primate_data_mod$log_body <- log(primate_data_mod$body_weight)
+primate_data_mod$log_group <- log(primate_data_mod$avg_group_size)
+
+
+# Verification of Transformations
+summary(primate_data_mod)
+
+# Calculate Encephilzation Quotient (EQ) for each species
+primate_data_mod <- primate_data_mod |>
+  mutate(EQ = brain_weight / (0.085 * body_weight ^ 0.775)) # EQ formula from DeCasien et al.
+
+primate_data_mod$dietary_category <- relevel(primate_data_mod$dietary_category, ref = "Fol")
+
+View(primate_data_mod)
+```
+
+##### Loading and Preparing Phylogenies
+
+```{r}
+file <- "https://10ktrees.nunn-lab.org/Primates/downloads/version3/10kTrees_finalFile_version3.nex"
+consensus_tree <- read.nexus.data(file)
+tree_block <- read.nexus("")
+
+consensus_tree <- multi2di(consensus_tree)
+
+
+```
+
+##### 
